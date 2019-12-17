@@ -1,0 +1,13 @@
+h1. twofa
+
+p. A terrible, should-not-be-used, wrote-it-for-fun-and-learning 2fa authenticator.
+
+h2. Usage
+
+bc. $ twofa ISSUER
+
+h3. @~/.twofa@
+
+p. The twofa rc file has the format:
+
+bc. ISSUER SECRET [interval | default(30)] [length | default(6)] [hashing algorithm | default(sha1)]

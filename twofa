@@ -1,0 +1,76 @@
+#!/usr/bin/env ruby
+
+require "openssl"
+require "base32"
+
+def db32(str)
+  Base32.decode(str)
+end
+
+def hs1(key, td = 30, tx = Time.now.to_i, hsh = "sha1")
+  OpenSSL::HMAC.hexdigest(hsh, key.to_s, [tx.to_i/td.to_i].pack("Q>"))
+end
+
+def dt(str)
+  offset = str[-1].to_i(16)
+  p = str[(offset*2)...((offset+4)*2)]
+  p[0] = (p[0].to_i(16) & 0x7).to_s(16)
+  p.to_i(16)
+end
+
+def hotp(num, dig = 6)
+  num % (10 ** dig)
+end
+
+def fatal(msg)
+  $stderr.puts(msg)
+  exit 1
+end
+
+class Secrets
+  class Secret
+    def initialize(secret, td, dig, hsh)
+      @secret = secret
+      @td = td
+      @dig = dig
+      @hsh = hsh
+    end
+
+    def verify(tx = Time.now.to_i)
+      decoded = db32(@secret)
+      hmac = hs1(decoded, @td, tx, @hsh)
+      trunc = dt(hmac)
+      code = hotp(trunc, @dig)
+      "%0#{@dig}d" % code
+    end
+
+    def time_remaining(tx = Time.now.to_i)
+      (tx.to_i/@td.to_i + 1) * @td - tx
+    end
+  end
+
+  def initialize(arr)
+    @secrets = {}
+    arr.each do |secretline|
+      i, s, t, d, h = secretline.split
+      @secrets[i] = Secret.new(s, t&.to_i || 30, d&.to_i || 6, h || "sha1")
+    end
+  end
+
+  def [](issuer)
+    @secrets[issuer]
+  end
+end
+
+TWOFAFILE = File.join(ENV["HOME"], ".twofa")
+fatal("No 2fa issuers file at ~/.twofa") unless File.exist?(TWOFAFILE)
+
+SECRETS = Secrets.new(File.readlines(TWOFAFILE).map(&:strip))
+
+ISSUER = ARGV.shift&.strip&.downcase
+fatal("Specify issuer") if ISSUER.nil?
+
+sec = SECRETS[ISSUER]
+fatal("No such issuer") if sec.nil?
+
+puts "#{sec.verify} (for #{sec.time_remaining} more seconds)"
