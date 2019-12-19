@@ -2,6 +2,7 @@
 
 require "openssl"
 require "base32"
+require "optimist"
 
 def db32(str)
   Base32.decode(str)
@@ -62,8 +63,24 @@ class Secrets
   end
 end
 
-TWOFAFILE = File.join(ENV["HOME"], ".twofa")
-fatal("No 2fa issuers file at ~/.twofa") unless File.exist?(TWOFAFILE)
+opts = Optimist::options do
+  version "twofa (c) 2019 Nat Lasseter"
+  banner <<-EOS
+twofa is a command line TOTP code generator.
+
+Usage:
+  twofa [opts] ISSUER
+
+where [opts] are:
+EOS
+
+  opt :no_clip, "Do not copy code to the clipboard"
+  opt :twofa_file, "Location of the twofa secrets file",
+    type: :string, default: File.join(ENV["HOME"], ".twofa")
+end
+
+TWOFAFILE = opts[:twofa_file]
+fatal("No 2fa issuers file at #{File.absolute_path(TWOFAFILE)}") unless File.exist?(TWOFAFILE)
 
 SECRETS = Secrets.new(File.readlines(TWOFAFILE).map(&:strip))
 
@@ -73,4 +90,12 @@ fatal("Specify issuer") if ISSUER.nil?
 sec = SECRETS[ISSUER]
 fatal("No such issuer") if sec.nil?
 
-puts "#{sec.verify} (for #{sec.time_remaining} more seconds)"
+code = sec.verify
+time = sec.time_remaining
+puts "#{code} (for #{time} more seconds)"
+
+unless opts[:no_clip] then
+  require "clipboard"
+  Clipboard.copy(code)
+  puts "(Copied to clipboard)"
+end

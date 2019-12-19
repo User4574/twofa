@@ -2,12 +2,30 @@ h1. twofa
 
 p. A terrible, should-not-be-used, wrote-it-for-fun-and-learning 2fa authenticator.
 
+h2. Requirements
+
+p. twofa requires the _base32_ and _optimist_ gems.
+
+h3. Clipboard
+
+p. For clipboard tasks, twofa requires the _clipboard_ gem, and either the _xclip_ or _xsel_ application.
+
 h2. Usage
 
-bc. $ twofa ISSUER
+bc.. $ twofa -h
+twofa is a command line TOTP code generator.
 
-h3. @~/.twofa@
+Usage:
+  twofa [opts] ISSUER
 
-p. The twofa rc file has the format:
+where [opts] are:
+  -n, --no-clip           Do not copy code to the clipboard
+  -t, --twofa-file=<s>    Location of the twofa secrets file (default: /home/nl987/.twofa)
+  -v, --version           Print version and exit
+  -h, --help              Show this message
+
+h3. twofa secrets file
+
+p. The twofa secrets file is normally found at @~./twofa@, and has the format:
 
 bc. ISSUER SECRET [interval | default(30)] [length | default(6)] [hashing algorithm | default(sha1)]
