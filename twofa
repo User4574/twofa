@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+#!DESCRIBE: CLI based TOTP 2FA authenticator
+
 require "openssl"
 require "base32"
 require "optimist"
@@ -8,8 +10,8 @@ def db32(str)
   Base32.decode(str)
 end
 
-def hs1(key, td = 30, tx = Time.now.to_i, hsh = "sha1")
-  OpenSSL::HMAC.hexdigest(hsh, key.to_s, [tx.to_i/td.to_i].pack("Q>"))
+def hs1(key, counter, hsh = "sha1")
+  OpenSSL::HMAC.hexdigest(hsh, key.to_s, [counter].pack("Q>"))
 end
 
 def dt(str)
@@ -30,43 +32,77 @@ end
 
 class Secrets
   class Secret
-    def initialize(secret, td, dig, hsh)
+    def initialize(method, secret, tdc, dig, hsh)
+      @method = method
       @secret = secret
-      @td = td
+      @tdc = tdc
       @dig = dig
       @hsh = hsh
     end
 
+    attr_reader :method
+
     def verify(tx = Time.now.to_i)
-      decoded = db32(@secret)
-      hmac = hs1(decoded, @td, tx, @hsh)
-      trunc = dt(hmac)
-      code = hotp(trunc, @dig)
-      "%0#{@dig}d" % code
+      case @method
+      when 'totp'
+        decoded = db32(@secret)
+        hmac = hs1(decoded, tx.to_i/@tdc.to_i, @hsh)
+        trunc = dt(hmac)
+        code = hotp(trunc, @dig)
+        "%0#{@dig}d" % code
+      when 'hotp'
+        decoded = db32(@secret)
+        hmac = hs1(decoded, @tdc, @hsh)
+        trunc = dt(hmac)
+        code = hotp(trunc, @dig)
+        @tdc += 1
+        "%0#{@dig}d" % code
+      else
+        fatal("I don't know how to #{@method}")
+      end
     end
 
     def time_remaining(tx = Time.now.to_i)
-      (tx.to_i/@td.to_i + 1) * @td - tx
+      case @method
+      when 'totp'
+        (tx.to_i/@tdc.to_i + 1) * @tdc - tx
+      end
+    end
+
+    def puts
+      "#{@secret} #{@tdc} #{@dig} #{@hsh}"
     end
   end
 
   def initialize(arr)
     @secrets = {}
     arr.each do |secretline|
-      i, s, t, d, h = secretline.split
-      @secrets[i] = Secret.new(s, t&.to_i || 30, d&.to_i || 6, h || "sha1")
+      m, i, s, tc, d, h = secretline.split
+      case m
+      when 'totp'
+        tc = tc&.to_i || 30
+      when 'hotp'
+        tc = tc&.to_i || 0
+      end
+      @secrets[i] = Secret.new(m, s, tc, d&.to_i || 6, h || "sha1")
     end
   end
 
   def [](issuer)
     @secrets[issuer]
   end
+
+  def puts
+    @secrets.map do |i, s|
+      "#{s.method} #{i} #{s.puts}"
+    end
+  end
 end
 
 opts = Optimist::options do
   version "twofa (c) 2019 Nat Lasseter"
   banner <<-EOS
-twofa is a command line TOTP code generator.
+twofa is a command line OTP code generator.
 
 Usage:
   twofa [opts] ISSUER
@@ -90,9 +126,16 @@ fatal("Specify issuer") if ISSUER.nil?
 sec = SECRETS[ISSUER]
 fatal("No such issuer") if sec.nil?
 
-code = sec.verify
-time = sec.time_remaining
-puts "#{code} (for #{time} more seconds)"
+case sec.method
+when 'totp'
+  code = sec.verify
+  time = sec.time_remaining
+  puts "#{code} (for #{time} more seconds)"
+when 'hotp'
+  code = sec.verify
+  puts "#{code} (rolled counter)"
+  File.open(TWOFAFILE, ?w).puts SECRETS.puts
+end
 
 unless opts[:no_clip] then
   require "clipboard"
