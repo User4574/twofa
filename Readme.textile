@@ -30,14 +30,18 @@ p. The twofa secrets file is normally found at @~./twofa@, and each record has t
 
 p. If a HOTP code is requested, the file will be canoncalised.
 
+p. Each issuer should appear on it's own line with the following format:
+
+bc. Method Issuer Secret [TDC [Length [Hash]]]
+
 h4. Required fields
 
-- Method := The OTP type, currently @totp@ or @hotp@
-- Issuer := Human name for this issuer
-- Secret := The BASE32 shared secret
+- Method := The OTP type, currently @totp@ or @hotp@.
+- Issuer := Human name to identify this issuer.
+- Secret := The BASE32 shared secret.
 
 h4. Optional fields
 
-- Time interval or Counter := Either the time interval (for TOTP) or counter (for HOTP). The former defaults to 30 if not given, the latter to 0.
+- TDC := Either the time delta (for TOTP) or counter (for HOTP). The former defaults to 30 if not given, the latter to 0.
 - Length := The output code length. Defaults to 6 digits.
-- Hashing algorithm := The algorithm used to generate the HMAS hash. Defaults to @sha1@.
+- Hash := The algorithm used to generate the HMAC hash. Defaults to @sha1@.
