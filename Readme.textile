@@ -32,11 +32,11 @@ p. If a HOTP code is requested, the file will be canoncalised.
 
 p. Each issuer should appear on it's own line with the following format:
 
-bc. Method Issuer Secret [TDC [Length [Hash]]]
+bc. [*]Method Issuer Secret [TDC [Length [Hash]]]
 
 h4. Required fields
 
-- Method := The OTP type, currently @totp@ or @hotp@.
+- Method := The OTP type, currently @totp@ or @hotp@. Optionally, prefixing the method with an asterisk specifies this is the default issuer to be used if one is not specified on the command line.
 - Issuer := Human name to identify this issuer.
 - Secret := The BASE32 shared secret.
 

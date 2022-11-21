@@ -31,6 +31,12 @@ def fatal(msg)
 end
 
 class Secrets
+  class MultipleDefaultException < StandardError
+    def initialize
+      super("Multiple default issuers specified in config file")
+    end
+  end
+
   class Secret
     def initialize(method, secret, tdc, dig, hsh)
       @method = method
@@ -76,17 +82,29 @@ class Secrets
 
   def initialize(arr)
     @secrets = {}
+    @default = nil
+
     arr.each do |secretline|
       m, i, s, tc, d, h = secretline.split
+
+      if m[0] == ?*
+        raise MultipleDefaultException.new unless @default.nil?
+        m = m[1..-1]
+        @default = i
+      end
+
       case m
       when 'totp'
         tc = tc&.to_i || 30
       when 'hotp'
         tc = tc&.to_i || 0
       end
+
       @secrets[i] = Secret.new(m, s, tc, d&.to_i || 6, h || "sha1")
     end
   end
+
+  attr_reader :default
 
   def [](issuer)
     @secrets[issuer]
@@ -94,7 +112,7 @@ class Secrets
 
   def puts
     @secrets.map do |i, s|
-      "#{s.method} #{i} #{s.puts}"
+      "#{i == @default ? ?* : ''}#{s.method} #{i} #{s.puts}"
     end
   end
 end
@@ -118,12 +136,20 @@ end
 TWOFAFILE = opts[:twofa_file]
 fatal("No 2fa issuers file at #{File.absolute_path(TWOFAFILE)}") unless File.exist?(TWOFAFILE)
 
-SECRETS = Secrets.new(File.readlines(TWOFAFILE).map(&:strip))
+begin
+  SECRETS = Secrets.new(File.readlines(TWOFAFILE).map(&:strip))
+rescue Secrets::MultipleDefaultException => e
+  fatal(e.message)
+end
 
-ISSUER = ARGV.shift&.strip&.downcase
-fatal("Specify issuer") if ISSUER.nil?
+issuer = ARGV.shift&.strip
+if issuer.nil?
+  issuer = SECRETS.default
+  fatal("Specify issuer") if issuer.nil?
+  puts "Using default issuer: #{issuer}"
+end
 
-sec = SECRETS[ISSUER]
+sec = SECRETS[issuer]
 fatal("No such issuer") if sec.nil?
 
 case sec.method
