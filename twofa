@@ -128,7 +128,7 @@ Usage:
 where [opts] are:
 EOS
 
-  opt :no_clip, "Do not copy code to the clipboard"
+  opt :dont_clip, "Do not copy code to the clipboard"
   opt :twofa_file, "Location of the twofa secrets file",
     type: :string, default: File.join(ENV["HOME"], ".twofa")
 end
@@ -163,7 +163,7 @@ when 'hotp'
   File.open(TWOFAFILE, ?w).puts SECRETS.puts
 end
 
-unless opts[:no_clip] then
+unless opts[:dont_clip] then
   require "clipboard"
   Clipboard.copy(code)
   puts "(Copied to clipboard)"
